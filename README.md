@@ -214,4 +214,4 @@ POST /api/classes
 
 ## 👨‍💻 Author
 
-Built with ❤️ using React Native + Expo + Node.js
+Built by Wakhongola: using React Native + Expo + Node.js
