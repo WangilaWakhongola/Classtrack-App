@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Classtrack — GPS Attendance</title>
+<style>
+  /* ── Design tokens ────────────────────────────────────── */
+  :root {
+    --ink:      #0f1117;
+    --ink-dim:  #4a4f5e;
+    --surface:  #f5f6fa;
+    --card:     #ffffff;
+    --border:   #e2e4ed;
+    --accent:   #3a5bef;
+    --accent-h: #2645d0;
+    --green:    #12b76a;
+    --red:      #f04438;
+    --amber:    #f79009;
+    --radius:   12px;
+    --shadow:   0 2px 12px rgba(0,0,0,.07);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: var(--surface);
+    color: var(--ink);
+    min-height: 100vh;
+    font-size: 15px;
+    line-height: 1.5;
+  }
+
+  /* ── Layout ───────────────────────────────────────────── */
+  #app { display: flex; flex-direction: column; min-height: 100vh; }
+
+  /* ── Auth screen ──────────────────────────────────────── */
+  .auth-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: linear-gradient(135deg, #1a2340 0%, #0f1117 100%);
+  }
+
+  .auth-box {
+    background: var(--card);
+    border-radius: 20px;
+    padding: 40px 36px;
+    width: 100%;
+    max-width: 420px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.3);
+  }
+
+  .auth-logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 32px;
+  }
+
+  .auth-logo .pin {
+    width: 36px; height: 36px;
+    background: var(--accent);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 18px;
+  }
+
+  .auth-logo h1 { font-size: 20px; font-weight: 700; letter-spacing: -.3px; }
+  .auth-logo span { font-size: 12px; color: var(--ink-dim); display: block; margin-top: -2px; }
+
+  .tab-row { display: flex; gap: 4px; background: var(--surface); border-radius: 8px; padding: 4px; margin-bottom: 24px; }
+  .tab-btn {
+    flex: 1; padding: 8px; border: none; border-radius: 6px;
+    background: transparent; font-size: 14px; font-weight: 500;
+    color: var(--ink-dim); cursor: pointer; transition: all .15s;
+  }
+  .tab-btn.active { background: var(--card); color: var(--ink); box-shadow: var(--shadow); }
+
+  /* ── Form elements ────────────────────────────────────── */
+  .field { margin-bottom: 16px; }
+  label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 6px; color: var(--ink); }
+
+  input, select {
+    width: 100%; padding: 10px 14px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px; font-size: 14px;
+    outline: none; transition: border-color .15s;
+    background: var(--card); color: var(--ink);
+  }
+  input:focus, select:focus { border-color: var(--accent); }
+
+  .btn {
+    width: 100%; padding: 12px;
+    background: var(--accent); color: #fff;
+    border: none; border-radius: 8px;
+    font-size: 15px; font-weight: 600;
+    cursor: pointer; transition: background .15s;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .btn:hover { background: var(--accent-h); }
+  .btn:disabled { opacity: .6; cursor: default; }
+  .btn.ghost { background: transparent; color: var(--accent); border: 1.5px solid var(--accent); }
+  .btn.ghost:hover { background: #f0f3ff; }
+  .btn.danger { background: var(--red); }
+  .btn.danger:hover { background: #c0392b; }
+  .btn.sm { width: auto; padding: 8px 16px; font-size: 13px; }
+
+  .alert {
+    padding: 10px 14px; border-radius: 8px;
+    font-size: 13px; margin-bottom: 16px;
+    display: none;
+  }
+  .alert.error { background: #fff1f0; color: var(--red); border: 1px solid #fecdc9; }
+  .alert.success { background: #ecfdf3; color: #027a48; border: 1px solid #a9efc5; }
+  .alert.show { display: block; }
+
+  /* ── Top nav ──────────────────────────────────────────── */
+  nav {
+    background: var(--ink);
+    color: #fff;
+    padding: 0 24px;
+    height: 56px;
+    display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 100;
+  }
+  nav .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 16px; }
+  nav .logo .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+  nav .nav-right { display: flex; align-items: center; gap: 16px; }
+  nav .student-badge {
+    background: rgba(255,255,255,.1);
+    padding: 4px 12px; border-radius: 20px;
+    font-size: 13px;
+  }
+  nav button.logout {
+    background: transparent; border: none; color: rgba(255,255,255,.6);
+    font-size: 13px; cursor: pointer; padding: 4px 8px; border-radius: 6px;
+    transition: color .15s;
+  }
+  nav button.logout:hover { color: #fff; }
+
+  /* ── Bottom tab bar ───────────────────────────────────── */
+  .bottom-nav {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    height: 60px;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    display: flex;
+    z-index: 100;
+  }
+  .bnav-btn {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    border: none; background: transparent;
+    color: var(--ink-dim); font-size: 10px; font-weight: 500;
+    cursor: pointer; gap: 3px; transition: color .15s;
+  }
+  .bnav-btn .icon { font-size: 20px; }
+  .bnav-btn.active { color: var(--accent); }
+
+  /* ── Main content ─────────────────────────────────────── */
+  main {
+    flex: 1;
+    padding: 24px;
+    padding-bottom: 80px;
+    max-width: 700px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  h2 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+  .subtitle { color: var(--ink-dim); font-size: 14px; margin-bottom: 24px; }
+
+  /* ── Cards ────────────────────────────────────────────── */
+  .card {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 20px;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
+    margin-bottom: 16px;
+  }
+
+  .card-title {
+    font-size: 13px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: .6px; color: var(--ink-dim); margin-bottom: 12px;
+  }
+
+  /* ── Stat grid ────────────────────────────────────────── */
+  .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+  .stat {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 16px;
+    border: 1px solid var(--border);
+    text-align: center;
+  }
+  .stat .val { font-size: 32px; font-weight: 800; color: var(--accent); line-height: 1; }
+  .stat .lbl { font-size: 12px; color: var(--ink-dim); margin-top: 4px; }
+
+  /* ── Weekly chart ─────────────────────────────────────── */
+  .chart-wrap { display: flex; align-items: flex-end; gap: 6px; height: 80px; }
+  .bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .bar-col .bar {
+    width: 100%; background: var(--accent);
+    border-radius: 4px 4px 0 0;
+    min-height: 4px;
+    transition: height .3s ease;
+    opacity: .85;
+  }
+  .bar-col .bar-lbl { font-size: 10px; color: var(--ink-dim); }
+
+  /* ── Class list items ─────────────────────────────────── */
+  .class-item {
+    display: flex; align-items: center;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+    gap: 14px;
+  }
+  .class-item:last-child { border-bottom: none; padding-bottom: 0; }
+  .class-dot {
+    width: 40px; height: 40px; border-radius: 10px;
+    background: #eef1ff; color: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; flex-shrink: 0;
+  }
+  .class-info { flex: 1; }
+  .class-info .name { font-weight: 600; font-size: 15px; }
+  .class-info .meta { font-size: 12px; color: var(--ink-dim); margin-top: 2px; }
+  .badge {
+    font-size: 11px; font-weight: 600; padding: 3px 10px;
+    border-radius: 20px; flex-shrink: 0;
+  }
+  .badge.signed { background: #ecfdf3; color: #027a48; }
+  .badge.pending { background: #fffaeb; color: #b45309; }
+  .badge.enrolled { background: #eef1ff; color: var(--accent); }
+
+  /* ── GPS Sign-in panel ────────────────────────────────── */
+  .gps-panel { text-align: center; padding: 24px 0; }
+  .gps-icon {
+    font-size: 48px; margin-bottom: 12px;
+    display: block;
+  }
+  .gps-status {
+    font-size: 14px; color: var(--ink-dim);
+    margin-bottom: 20px; min-height: 20px;
+  }
+  .selfie-preview {
+    width: 100%; max-width: 280px; border-radius: 12px;
+    margin: 0 auto 16px; display: block;
+    border: 2px solid var(--border); display: none;
+  }
+
+  /* ── Reports table ────────────────────────────────────── */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 8px 12px; background: var(--surface); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--ink-dim); }
+  td { padding: 10px 12px; border-top: 1px solid var(--border); }
+  tr:hover td { background: var(--surface); }
+
+  /* ── Spinner ──────────────────────────────────────────── */
+  .spinner {
+    width: 18px; height: 18px;
+    border: 2px solid rgba(255,255,255,.4);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin .6s linear infinite;
+    display: inline-block;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Camera */
+  #cameraVideo { width: 100%; border-radius: 10px; max-height: 220px; object-fit: cover; display: none; }
+  #cameraCanvas { display: none; }
+
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<!-- ══════════════ AUTH SCREEN ══════════════ -->
+<div id="authScreen">
+  <div class="auth-wrap">
+    <div class="auth-box">
+      <div class="auth-logo">
+        <div class="pin">📍</div>
+        <div>
+          <h1>Classtrack</h1>
+          <span>GPS-verified attendance</span>
+        </div>
+      </div>
+
+      <div class="tab-row">
+        <button class="tab-btn active" onclick="switchTab('login')">Sign in</button>
+        <button class="tab-btn" onclick="switchTab('register')">Register</button>
+      </div>
+
+      <div id="authAlert" class="alert"></div>
+
+      <!-- Login -->
+      <div id="loginForm">
+        <div class="field"><label>Student ID</label><input id="loginId" type="text" placeholder="e.g. S12345" /></div>
+        <div class="field"><label>Password</label><input id="loginPw" type="password" placeholder="••••••••" /></div>
+        <button class="btn" onclick="doLogin()"><span>Sign in</span></button>
+      </div>
+
+      <!-- Register -->
+      <div id="registerForm" class="hidden">
+        <div class="field"><label>Full name</label><input id="regName" type="text" placeholder="Jane Mwangi" /></div>
+        <div class="field"><label>Student ID</label><input id="regId" type="text" placeholder="S12345" /></div>
+        <div class="field"><label>Email</label><input id="regEmail" type="email" placeholder="jane@university.edu" /></div>
+        <div class="field"><label>Course / Programme</label><input id="regCourse" type="text" placeholder="BSc Computer Science" /></div>
+        <div class="field"><label>Password</label><input id="regPw" type="password" placeholder="min 8 characters" /></div>
+        <button class="btn" onclick="doRegister()"><span>Create account</span></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ MAIN APP ══════════════ -->
+<div id="mainApp" class="hidden" style="display:flex;flex-direction:column;min-height:100vh;">
+  <nav>
+    <div class="logo"><div class="dot"></div> Classtrack</div>
+    <div class="nav-right">
+      <span class="student-badge" id="navStudentId">—</span>
+      <button class="logout" onclick="logout()">Sign out</button>
+    </div>
+  </nav>
+
+  <main>
+    <!-- Dashboard -->
+    <div id="pageDashboard">
+      <h2>Dashboard</h2>
+      <p class="subtitle" id="dashGreeting">Good morning</p>
+
+      <div class="stat-grid">
+        <div class="stat"><div class="val" id="statTotal">—</div><div class="lbl">Sessions attended</div></div>
+        <div class="stat"><div class="val" id="statClasses">—</div><div class="lbl">Enrolled classes</div></div>
+        <div class="stat"><div class="val" id="statToday">—</div><div class="lbl">Signed in today</div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Last 7 days</div>
+        <div class="chart-wrap" id="weeklyChart"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Today's classes</div>
+        <div id="todayList"><p style="color:var(--ink-dim);font-size:14px;">Loading…</p></div>
+      </div>
+    </div>
+
+    <!-- Sign in -->
+    <div id="pageAttendance" class="hidden">
+      <h2>Mark attendance</h2>
+      <p class="subtitle">Select a class, capture a selfie, then sign in with GPS.</p>
+
+      <div class="card">
+        <div class="field">
+          <label>Class</label>
+          <select id="attendClass"><option value="">— choose a class —</option></select>
+        </div>
+
+        <div class="gps-panel">
+          <span class="gps-icon">📍</span>
+          <div class="gps-status" id="gpsStatus">Location not yet checked</div>
+
+          <video id="cameraVideo" autoplay playsinline></video>
+          <canvas id="cameraCanvas"></canvas>
+          <img id="selfiePreview" class="selfie-preview" alt="Selfie preview" />
+
+          <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+            <button class="btn ghost sm" onclick="openCamera()">📷 Take selfie</button>
+            <button class="btn ghost sm" onclick="getLocation()">📡 Get location</button>
+          </div>
+        </div>
+
+        <div id="signAlert" class="alert" style="margin-top:12px;"></div>
+
+        <button class="btn" style="margin-top:8px;" onclick="signAttendance()">✅ Sign attendance</button>
+      </div>
+    </div>
+
+    <!-- Classes -->
+    <div id="pageClasses" class="hidden">
+      <h2>My classes</h2>
+      <p class="subtitle">All classes you are enrolled in.</p>
+      <div id="classesList"><p style="color:var(--ink-dim);font-size:14px;">Loading…</p></div>
+
+      <div class="card" style="margin-top:24px;">
+        <div class="card-title">Enroll in a class</div>
+        <div class="field"><label>Class</label>
+          <select id="enrollClassSelect"><option value="">— choose —</option></select>
+        </div>
+        <div id="enrollAlert" class="alert"></div>
+        <button class="btn sm" onclick="doEnroll()">Enroll</button>
+      </div>
+    </div>
+
+    <!-- Reports -->
+    <div id="pageReports" class="hidden">
+      <h2>Reports</h2>
+      <p class="subtitle">Your attendance history.</p>
+
+      <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;">
+        <button class="btn sm ghost" onclick="loadReports('week')">Last 7 days</button>
+        <button class="btn sm ghost" onclick="loadReports('month')">Last 30 days</button>
+        <button class="btn sm ghost" onclick="loadReports('all')">All time</button>
+      </div>
+
+      <div class="card" style="overflow-x:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th><th>Class</th><th>Code</th><th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="reportsBody">
+            <tr><td colspan="4" style="color:var(--ink-dim);">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <nav class="bottom-nav">
+    <button class="bnav-btn active" onclick="showPage('Dashboard')"><span class="icon">🏠</span>Home</button>
+    <button class="bnav-btn" onclick="showPage('Attendance')"><span class="icon">✅</span>Sign in</button>
+    <button class="bnav-btn" onclick="showPage('Classes')"><span class="icon">📚</span>Classes</button>
+    <button class="bnav-btn" onclick="showPage('Reports')"><span class="icon">📊</span>Reports</button>
+  </nav>
+</div>
+
+<script>
+// ── Config ────────────────────────────────────────────────
+const API = '';  // same origin; change to full URL if separate server
+
+// ── State ─────────────────────────────────────────────────
+let token = localStorage.getItem('ct_token');
+let student = JSON.parse(localStorage.getItem('ct_student') || 'null');
+let currentLocation = null;
+let selfieBase64 = null;
+let cameraStream = null;
+
+// ── Boot ──────────────────────────────────────────────────
+window.onload = () => {
+  if (token && student) showApp();
+};
+
+// ── Auth ──────────────────────────────────────────────────
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach((b, i) => b.classList.toggle('active', (tab==='login')===!i));
+  document.getElementById('loginForm').classList.toggle('hidden', tab !== 'login');
+  document.getElementById('registerForm').classList.toggle('hidden', tab !== 'register');
+  clearAlert('authAlert');
+}
+
+async function doLogin() {
+  const btn = event.currentTarget;
+  const id = document.getElementById('loginId').value.trim();
+  const pw = document.getElementById('loginPw').value;
+  if (!id || !pw) return showAlert('authAlert', 'error', 'Please fill in all fields.');
+  setLoading(btn, true);
+  try {
+    const res = await api('/api/auth/login', 'POST', { student_id: id, password: pw }, false);
+    saveSession(res);
+    showApp();
+  } catch(e) {
+    showAlert('authAlert', 'error', e.message);
+  } finally { setLoading(btn, false); }
+}
+
+async function doRegister() {
+  const btn = event.currentTarget;
+  const body = {
+    name: document.getElementById('regName').value.trim(),
+    student_id: document.getElementById('regId').value.trim(),
+    email: document.getElementById('regEmail').value.trim(),
+    course: document.getElementById('regCourse').value.trim(),
+    password: document.getElementById('regPw').value,
+  };
+  if (!body.name || !body.student_id || !body.email || !body.password)
+    return showAlert('authAlert', 'error', 'Please fill in all fields.');
+  setLoading(btn, true);
+  try {
+    const res = await api('/api/auth/register', 'POST', body, false);
+    saveSession(res);
+    showApp();
+  } catch(e) {
+    showAlert('authAlert', 'error', e.message);
+  } finally { setLoading(btn, false); }
+}
+
+function saveSession(res) {
+  token = res.access_token;
+  student = res.student;
+  localStorage.setItem('ct_token', token);
+  localStorage.setItem('ct_student', JSON.stringify(student));
+}
+
+function logout() {
+  localStorage.removeItem('ct_token');
+  localStorage.removeItem('ct_student');
+  token = null; student = null;
+  document.getElementById('authScreen').classList.remove('hidden');
+  document.getElementById('mainApp').classList.add('hidden');
+  document.getElementById('mainApp').style.display = 'none';
+}
+
+// ── App shell ──────────────────────────────────────────────
+function showApp() {
+  document.getElementById('authScreen').classList.add('hidden');
+  document.getElementById('mainApp').classList.remove('hidden');
+  document.getElementById('mainApp').style.display = 'flex';
+  document.getElementById('navStudentId').textContent = student.student_id;
+  loadDashboard();
+}
+
+function showPage(name) {
+  ['Dashboard','Attendance','Classes','Reports'].forEach(p => {
+    document.getElementById('page'+p).classList.toggle('hidden', p !== name);
+  });
+  document.querySelectorAll('.bnav-btn').forEach((b, i) => {
+    b.classList.toggle('active', ['Dashboard','Attendance','Classes','Reports'][i] === name);
+  });
+  if (name === 'Attendance') loadAttendanceClasses();
+  if (name === 'Classes') loadClasses();
+  if (name === 'Reports') loadReports('month');
+}
+
+// ── Dashboard ─────────────────────────────────────────────
+async function loadDashboard() {
+  const hour = new Date().getHours();
+  const greet = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  document.getElementById('dashGreeting').textContent = `${greet}, ${student.name.split(' ')[0]}`;
+
+  try {
+    const [stats, todayClasses] = await Promise.all([
+      api(`/api/attendance/stats/${student.student_id}`),
+      api(`/api/classes/today/${student.student_id}`),
+    ]);
+
+    document.getElementById('statTotal').textContent = stats.total_sessions;
+    document.getElementById('statClasses').textContent = stats.enrolled_classes;
+
+    // Count how many classes signed today
+    const todaySigned = stats.weekly.at(-1)?.count ?? 0;
+    document.getElementById('statToday').textContent = todaySigned;
+
+    renderWeeklyChart(stats.weekly);
+    renderTodayClasses(todayClasses);
+  } catch(e) { console.error(e); }
+}
+
+function renderWeeklyChart(weekly) {
+  const wrap = document.getElementById('weeklyChart');
+  const max = Math.max(...weekly.map(w => w.count), 1);
+  const days = ['M','T','W','T','F','S','S'];
+  wrap.innerHTML = weekly.map((w, i) => {
+    const pct = (w.count / max) * 100;
+    const label = new Date(w.date + 'T12:00:00').toLocaleDateString('en', {weekday:'narrow'});
+    return `<div class="bar-col">
+      <div class="bar" style="height:${pct}%;"></div>
+      <div class="bar-lbl">${label}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderTodayClasses(classes) {
+  const el = document.getElementById('todayList');
+  if (!classes.length) {
+    el.innerHTML = '<p style="color:var(--ink-dim);font-size:14px;">No classes scheduled today.</p>';
+    return;
+  }
+  el.innerHTML = classes.map(c => `
+    <div class="class-item">
+      <div class="class-dot">📖</div>
+      <div class="class-info">
+        <div class="name">${c.name}</div>
+        <div class="meta">${c.course_code} · ${c.room} · ${c.instructor}</div>
+      </div>
+      <span class="badge enrolled">${c.course_code}</span>
+    </div>
+  `).join('');
+}
+
+// ── Attendance sign-in ─────────────────────────────────────
+async function loadAttendanceClasses() {
+  try {
+    const classes = await api(`/api/classes/enrolled/${student.student_id}`);
+    const sel = document.getElementById('attendClass');
+    sel.innerHTML = '<option value="">— choose a class —</option>' +
+      classes.map(c => `<option value="${c._id}">${c.name} (${c.course_code})</option>`).join('');
+  } catch(e) {}
+}
+
+async function getLocation() {
+  const status = document.getElementById('gpsStatus');
+  status.textContent = 'Getting your location…';
+  if (!navigator.geolocation) {
+    status.textContent = '⚠️ Geolocation not supported by this browser.';
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      currentLocation = { lat: pos.coords.latitude, lon: pos.coords.longitude, acc: pos.coords.accuracy };
+      status.textContent = `📍 Location acquired (±${Math.round(pos.coords.accuracy)}m accuracy)`;
+    },
+    err => {
+      status.textContent = `❌ Location error: ${err.message}`;
+    },
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+}
+
+async function openCamera() {
+  const video = document.getElementById('cameraVideo');
+  try {
+    cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+    video.srcObject = cameraStream;
+    video.style.display = 'block';
+    // Auto capture after 2s
+    setTimeout(captureSelfie, 2000);
+  } catch(e) {
+    showAlert('signAlert', 'error', 'Camera access denied. Selfie optional.');
+  }
+}
+
+function captureSelfie() {
+  const video = document.getElementById('cameraVideo');
+  const canvas = document.getElementById('cameraCanvas');
+  const preview = document.getElementById('selfiePreview');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+  selfieBase64 = canvas.toDataURL('image/jpeg', 0.7).split(',')[1];
+  preview.src = 'data:image/jpeg;base64,' + selfieBase64;
+  preview.style.display = 'block';
+  video.style.display = 'none';
+  if (cameraStream) { cameraStream.getTracks().forEach(t => t.stop()); }
+}
+
+async function signAttendance() {
+  const btn = event.currentTarget;
+  const classId = document.getElementById('attendClass').value;
+  if (!classId) return showAlert('signAlert', 'error', 'Please select a class.');
+  if (!currentLocation) return showAlert('signAlert', 'error', 'Please get your location first.');
+
+  clearAlert('signAlert');
+  setLoading(btn, true);
+  try {
+    const res = await api('/api/attendance/sign', 'POST', {
+      student_id: student.student_id,
+      class_id: classId,
+      latitude: currentLocation.lat,
+      longitude: currentLocation.lon,
+      selfie_base64: selfieBase64 || null,
+    });
+    showAlert('signAlert', 'success', res.message + ` — ${res.record.distance_m}m from classroom.`);
+    selfieBase64 = null;
+    currentLocation = null;
+    document.getElementById('gpsStatus').textContent = 'Location not yet checked';
+    document.getElementById('selfiePreview').style.display = 'none';
+  } catch(e) {
+    showAlert('signAlert', 'error', e.message);
+  } finally { setLoading(btn, false); }
+}
+
+// ── Classes ────────────────────────────────────────────────
+async function loadClasses() {
+  try {
+    const [enrolled, all] = await Promise.all([
+      api(`/api/classes/enrolled/${student.student_id}`),
+      api('/api/classes/all'),
+    ]);
+
+    const enrolledIds = new Set(enrolled.map(c => c._id));
+
+    document.getElementById('classesList').innerHTML = enrolled.length
+      ? enrolled.map(c => `
+          <div class="card">
+            <div class="class-item" style="padding:0;border:none;">
+              <div class="class-dot">📖</div>
+              <div class="class-info">
+                <div class="name">${c.name}</div>
+                <div class="meta">${c.course_code} · ${c.room} · Instructor: ${c.instructor}</div>
+                <div class="meta" style="margin-top:4px;">GPS radius: ${c.radius_meters}m</div>
+              </div>
+            </div>
+          </div>`).join('')
+      : '<p style="color:var(--ink-dim);font-size:14px;">Not enrolled in any classes yet.</p>';
+
+    const sel = document.getElementById('enrollClassSelect');
+    const notEnrolled = all.filter(c => !enrolledIds.has(c._id));
+    sel.innerHTML = '<option value="">— choose —</option>' +
+      notEnrolled.map(c => `<option value="${c._id}">${c.name} (${c.course_code})</option>`).join('');
+  } catch(e) { console.error(e); }
+}
+
+async function doEnroll() {
+  const classId = document.getElementById('enrollClassSelect').value;
+  if (!classId) return showAlert('enrollAlert', 'error', 'Please select a class.');
+  try {
+    const res = await api(`/api/classes/${classId}/enroll`, 'POST', { student_id: student.student_id });
+    showAlert('enrollAlert', 'success', res.message);
+    loadClasses();
+  } catch(e) {
+    showAlert('enrollAlert', 'error', e.message);
+  }
+}
+
+// ── Reports ────────────────────────────────────────────────
+async function loadReports(period) {
+  try {
+    const records = await api(`/api/attendance/reports/${student.student_id}?period=${period}`);
+    const tbody = document.getElementById('reportsBody');
+    if (!records.length) {
+      tbody.innerHTML = '<tr><td colspan="4" style="color:var(--ink-dim);">No records found.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = records.map(r => `
+      <tr>
+        <td>${r.date}</td>
+        <td>${r.class_name}</td>
+        <td>${r.course_code}</td>
+        <td><span class="badge signed">Present</span></td>
+      </tr>`).join('');
+  } catch(e) { console.error(e); }
+}
+
+// ── API helper ────────────────────────────────────────────
+async function api(path, method = 'GET', body = null, auth = true) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (auth && token) headers['Authorization'] = 'Bearer ' + token;
+  const res = await fetch(API + path, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail || 'Something went wrong');
+  return data;
+}
+
+// ── UI helpers ────────────────────────────────────────────
+function showAlert(id, type, msg) {
+  const el = document.getElementById(id);
+  el.className = `alert ${type} show`;
+  el.textContent = msg;
+}
+function clearAlert(id) {
+  const el = document.getElementById(id);
+  el.className = 'alert';
+  el.textContent = '';
+}
+function setLoading(btn, on) {
+  btn.disabled = on;
+  if (on) btn.innerHTML = '<span class="spinner"></span>';
+  else btn.innerHTML = btn.getAttribute('data-label') || btn.innerHTML;
+}
+</script>
+</body>
+</html>

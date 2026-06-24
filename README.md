@@ -1,217 +1,136 @@
-# 📍 AttendIQ — GPS-Based Student Attendance App
+# 📍 Classtrack — GPS Attendance (Python Edition)
 
-A full-stack mobile application for GPS-verified student attendance with biometric login, selfie verification, and real-time analytics.
+A full-stack attendance app built with **FastAPI + MongoDB** (backend) and a **vanilla HTML/JS SPA** (frontend).  
+Students can only mark attendance when physically inside the classroom, verified by server-side GPS geofencing and an optional selfie capture.
 
 ---
 
-## 🗂 Project Structure
+## Tech Stack
+
+| Layer      | Technology                          |
+|------------|-------------------------------------|
+| Backend    | Python 3.11+ · FastAPI · Uvicorn    |
+| Database   | MongoDB · Motor (async driver)      |
+| Auth       | JWT (python-jose) · bcrypt          |
+| Geo check  | Haversine formula (pure Python)     |
+| Frontend   | HTML · CSS · Vanilla JS (no build)  |
+
+---
+
+## Project Structure
 
 ```
-AttendanceApp/
-├── App.js                        # Entry point
-├── app.json                      # Expo config
-├── package.json
-├── babel.config.js
-├── src/
-│   ├── navigation/
-│   │   └── AppNavigator.js       # Stack + Tab navigation
-│   ├── screens/
-│   │   ├── LoginScreen.js        # ID/password + biometric login
-│   │   ├── AttendanceScreen.js   # GPS sign-in + selfie capture
-│   │   ├── DashboardScreen.js    # Stats + weekly chart
-│   │   ├── ReportsScreen.js      # Per-class attendance reports
-│   │   └── ProfileScreen.js      # User profile + logout
-│   ├── services/
-│   │   ├── authService.js        # Login/register API calls
-│   │   ├── attendanceService.js  # Attendance API calls
-│   │   └── notificationService.js# Push notifications
-│   ├── hooks/
-│   │   └── useAuth.js            # Auth state + AsyncStorage
+classtrack/
+├── backend/
+│   ├── main.py                  # FastAPI app + lifespan
+│   ├── database.py              # Motor/MongoDB connection
+│   ├── requirements.txt
+│   ├── .env.example
+│   ├── models/
+│   │   └── schemas.py           # Pydantic models
+│   ├── routes/
+│   │   ├── auth.py              # /api/auth/*
+│   │   ├── classes.py           # /api/classes/*
+│   │   └── attendance.py        # /api/attendance/*
+│   ├── middleware/
+│   │   └── auth.py              # JWT create/verify, Depends
 │   └── utils/
-│       └── geoUtils.js           # Haversine GPS distance
-└── backend/
-    ├── server.js                 # Express app entry
-    ├── package.json
-    ├── .env.example
-    ├── models/
-    │   ├── Student.js            # Student schema + bcrypt
-    │   └── ClassAttendance.js    # Class + Attendance schemas
-    ├── routes/
-    │   ├── auth.js               # Register, login, biometric
-    │   ├── classes.js            # Class management + enrollment
-    │   └── attendance.js         # Sign, check, stats, reports
-    └── middleware/
-        └── auth.js               # JWT verification middleware
+│       └── geo.py               # Haversine distance
+└── frontend/
+    └── index.html               # Single-page app (served by FastAPI)
 ```
 
 ---
 
-## 🚀 Getting Started
+## Quick Start
 
-### Prerequisites
-- Node.js v18+
-- MongoDB (local or Atlas)
-- Expo CLI: `npm install -g expo-cli`
-- Expo Go app on your phone (for testing)
+### 1. Prerequisites
 
----
+- Python 3.11+
+- MongoDB running locally (`mongod`) **or** a free [MongoDB Atlas](https://mongodb.com/atlas) cluster
 
-### 1️⃣ Backend Setup
+### 2. Backend setup
 
 ```bash
 cd backend
-cp .env.example .env
-# Edit .env with your MongoDB URI and JWT secret
-npm install
-npm run dev
+cp .env.example .env        # Edit MONGO_URI and JWT_SECRET
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8000
 ```
 
-Your server will start on `http://localhost:5000`
+Open **http://localhost:8000** — the frontend is served automatically.  
+Interactive API docs: **http://localhost:8000/docs**
 
 ---
 
-### 2️⃣ Mobile App Setup
+## API Endpoints
+
+### Auth  `/api/auth`
+| Method | Path         | Description            |
+|--------|--------------|------------------------|
+| POST   | `/register`  | Register a new student |
+| POST   | `/login`     | Login → JWT token      |
+| GET    | `/me`        | Get current profile    |
+
+### Classes  `/api/classes`
+| Method | Path                        | Description                |
+|--------|-----------------------------|----------------------------|
+| GET    | `/all`                      | List all classes           |
+| GET    | `/enrolled/{student_id}`    | Classes student is in      |
+| GET    | `/today/{student_id}`       | Today's scheduled classes  |
+| POST   | `/`                         | Create a class             |
+| POST   | `/{id}/enroll`              | Enroll student             |
+| DELETE | `/{id}/enroll/{student_id}` | Unenroll student           |
+
+### Attendance  `/api/attendance`
+| Method | Path                   | Description                       |
+|--------|------------------------|-----------------------------------|
+| POST   | `/sign`                | Sign attendance (GPS + selfie)    |
+| GET    | `/check`               | Already signed today?             |
+| GET    | `/stats/{student_id}`  | Stats + weekly chart data         |
+| GET    | `/reports/{student_id}`| History (week / month / all)      |
+| GET    | `/class-report/{id}`   | All students signed for a class   |
+
+---
+
+## Creating a Class (seed data)
 
 ```bash
-# From root AttendanceApp/ folder
-npm install
-```
-
-Update your backend URL in `src/services/authService.js` and `attendanceService.js`:
-```js
-const API_URL = 'http://YOUR_LOCAL_IP:5000/api';
-// Use your machine's local IP (e.g. 192.168.1.x), not localhost
-```
-
-Then start Expo:
-```bash
-npx expo start
-```
-
-Scan the QR code with **Expo Go** on your phone.
-
----
-
-## 🔑 Features
-
-| Feature | Description |
-|---|---|
-| 🔐 Login | Student ID + password |
-| 🖐 Biometric | Fingerprint / Face ID login |
-| 📍 GPS Geofencing | 50m radius classroom check |
-| 🤳 Selfie Verification | Front camera capture for anti-proxy |
-| 📊 Dashboard | Attendance stats + weekly bar chart |
-| 📋 Reports | Per-class reports, shareable |
-| 🔔 Push Notifications | Class reminders + confirmations |
-
----
-
-## 🌐 API Endpoints
-
-### Auth
-| Method | Endpoint | Description |
-|---|---|---|
-| POST | `/api/auth/register` | Register new student |
-| POST | `/api/auth/login` | Login with ID + password |
-| POST | `/api/auth/biometric` | Biometric login |
-| POST | `/api/auth/push-token` | Save push notification token |
-
-### Classes
-| Method | Endpoint | Description |
-|---|---|---|
-| GET | `/api/classes/today/:studentId` | Get today's scheduled classes |
-| GET | `/api/classes/all` | Get all enrolled classes |
-| POST | `/api/classes` | Create class (admin) |
-| POST | `/api/classes/:id/enroll` | Enroll in a class |
-
-### Attendance
-| Method | Endpoint | Description |
-|---|---|---|
-| POST | `/api/attendance/sign` | Sign attendance (GPS + selfie) |
-| GET | `/api/attendance/check` | Check if already signed today |
-| GET | `/api/attendance/stats/:id` | Get student stats |
-| GET | `/api/attendance/reports/:id` | Get reports by period |
-
----
-
-## 🗄 Environment Variables (backend/.env)
-
-```env
-PORT=5000
-MONGO_URI=mongodb://localhost:27017/attendancedb
-JWT_SECRET=your_super_secret_key
-JWT_EXPIRES_IN=7d
-CLASSROOM_RADIUS_METERS=50
+curl -X POST http://localhost:8000/api/classes \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Data Structures",
+    "course_code": "CS201",
+    "instructor": "Dr. Wakhongola",
+    "room": "B-204",
+    "latitude": -1.2921,
+    "longitude": 36.8219,
+    "radius_meters": 50,
+    "schedule": [
+      {"day_of_week": 0, "start_time": "09:00", "end_time": "10:30"},
+      {"day_of_week": 2, "start_time": "09:00", "end_time": "10:30"}
+    ]
+  }'
 ```
 
 ---
 
-## 🏗 Deployment
+## Security
 
-### Backend (Railway / Render / Heroku)
-1. Push backend folder to a repo or deploy via CLI
-2. Set environment variables in the dashboard
-3. Update `API_URL` in the mobile app to your deployed URL
+- **JWT** on every protected route via `Authorization: Bearer <token>`
+- **GPS verified server-side** using Haversine — client can't fake it
+- **Duplicate prevention** — unique index on (student, class, date)
+- **Password hashing** via bcrypt
+- **Selfie stored as base64** on the attendance record (optional anti-proxy visual)
 
-### Mobile App (EAS Build)
-```bash
-npm install -g eas-cli
-eas login
-eas build --platform android   # APK for Android
-eas build --platform ios       # IPA for iOS
+---
+
+## Environment Variables
+
 ```
-
----
-
-## 📌 Configuring Classroom GPS Coordinates
-
-When creating a class via the API, pass the classroom's real GPS coordinates:
-
-```json
-POST /api/classes
-{
-  "name": "Data Structures",
-  "courseCode": "CS201",
-  "instructor": "Dr. Smith",
-  "room": "B-204",
-  "latitude": 14.5995,
-  "longitude": 120.9842,
-  "schedule": [
-    { "dayOfWeek": 1, "startTime": "09:00", "endTime": "10:30" },
-    { "dayOfWeek": 3, "startTime": "09:00", "endTime": "10:30" }
-  ]
-}
+PORT=8000
+MONGO_URI=mongodb://localhost:27017/classtackdb
+JWT_SECRET=change_me_to_something_long_and_random
+JWT_EXPIRES_HOURS=168
 ```
-
----
-
-## 🛡 Security Features
-
-- **JWT Authentication** — all routes protected
-- **GPS Geofencing** — server-side distance verification (not just client-side)
-- **Duplicate Prevention** — unique index on student+class+date
-- **Biometric** — device-level authentication via expo-local-authentication
-- **Selfie Capture** — anti-proxy visual verification
-
----
-
-## 📦 Tech Stack
-
-| Layer | Technology |
-|---|---|
-| Mobile | React Native + Expo |
-| Navigation | React Navigation v6 |
-| Charts | react-native-chart-kit |
-| Backend | Node.js + Express |
-| Database | MongoDB + Mongoose |
-| Auth | JWT + bcryptjs |
-| Location | expo-location |
-| Camera | expo-camera |
-| Biometrics | expo-local-authentication |
-| Notifications | expo-notifications |
-
----
-
-## 👨‍💻 Author
-
-Built by Wakhongola: using React Native + Expo + Node.js
