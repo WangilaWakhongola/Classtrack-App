@@ -1,6 +1,6 @@
 #  Classtrack :GPS Attendance
 
-A full-stack attendance app built with **FastAPI + MongoDB** (backend) and a **vanilla HTM/JS SPA** (frontend).  
+A full-stack attendance app built with **FastAPI + MongoDB** (backend) and a **vanilla HTML/JS SPA** (frontend).  
 Students can only mark attendance when physically inside the classroom, verified by server-side GPS geofencing and an optional selfie capture.
 
 ---
